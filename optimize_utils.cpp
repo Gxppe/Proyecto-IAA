@@ -311,6 +311,26 @@ Solution hill_climbing(const Instance &I, const Solution &sol, Move move) {
   }
 }
 
+Solution destructor(const Instance &I, const Solution &sol, double alpha, mt19937 &rng) {
+  if (alpha < 0 || alpha > 1) {
+    ostringstream message;
+    message << "destructor: alpha debe estar entre 0 y 1, se recibio alpha = " << alpha;
+    throw invalid_argument(message.str());
+  }
+
+  vector<int> bridges = I.N;
+  shuffle(bridges.begin(), bridges.end(), rng);
+  size_t amount_to_remove = (size_t)floor(alpha * bridges.size() + 1e-9);
+  vector<int> removed(bridges.begin(), bridges.begin() + amount_to_remove);
+
+  Solution broken = sol;
+  for (vector<int> &route : broken) {
+    auto is_removed = [&](int node) { return contains(removed, node); };
+    route.erase(remove_if(route.begin(), route.end(), is_removed), route.end());
+  }
+  return broken;
+}
+
 struct OpenRoute {
   int team;
   RouteDays days;
@@ -449,4 +469,26 @@ Solution reconstructor(const Instance &I, const Solution &broken, double alpha) 
   ostringstream message;
   message << "reconstructor: no se pudo reconstruir una solucion factible con alpha = " << alpha;
   throw runtime_error(message.str());
+}
+
+Move select_move(const MoveSelector &selector, double epsilon, mt19937 &rng) {
+  if (epsilon < 0 || epsilon > 1) {
+    ostringstream message;
+    message << "select_move: epsilon debe estar entre 0 y 1, se recibio epsilon = " << epsilon;
+    throw invalid_argument(message.str());
+  }
+
+  bool explore = uniform_real_distribution<double>(0, 1)(rng) < epsilon;
+  if (explore) return ALL_MOVES[uniform_int_distribution<int>(0, MOVE_COUNT - 1)(rng)];
+
+  int best = 0;
+  for (int m = 1; m < MOVE_COUNT; m++)
+    if (selector.q[m] > selector.q[best]) best = m;
+  return ALL_MOVES[best];
+}
+
+void update_move(MoveSelector &selector, Move move, double reward) {
+  int m = static_cast<int>(move);
+  selector.times_chosen[m]++;
+  selector.q[m] += (reward - selector.q[m]) / selector.times_chosen[m];
 }

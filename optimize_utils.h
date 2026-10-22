@@ -1,6 +1,8 @@
 #pragma once
 #include "handlers.h"
 #include "instance.h"
+#include <array>
+#include <random>
 
 double travel_cost(const Instance &I, int from, int to);
 double route_cost(const Instance &I, const vector<int> &route, int team);
@@ -24,6 +26,20 @@ Solution change_accommodation(const Instance &I, const Solution &sol, int team, 
 
 enum class Move { TWO_OPT, SWAP, CHANGE_DAY, CHANGE_NEW_DAY, CHANGE_ACCOMMODATION };
 
+const int MOVE_COUNT = 5;
+const array<Move, MOVE_COUNT> ALL_MOVES = {Move::TWO_OPT, Move::SWAP, Move::CHANGE_DAY, Move::CHANGE_NEW_DAY,
+                                           Move::CHANGE_ACCOMMODATION};
+
+struct MoveSelector {
+  array<double, MOVE_COUNT> q{};
+  array<int, MOVE_COUNT> times_chosen{};
+};
+
+Move select_move(const MoveSelector &selector, double epsilon, mt19937 &rng);
+void update_move(MoveSelector &selector, Move move, double reward);
+
 Solution hill_climbing(const Instance &I, const Solution &sol, Move move);
+
+Solution destructor(const Instance &I, const Solution &sol, double alpha, mt19937 &rng);
 
 Solution reconstructor(const Instance &I, const Solution &broken, double alpha);
