@@ -2,7 +2,7 @@
 
 ## Visualizador de instancias
 
-Para ver como se van "consumiendo" las instancias de [https://github.com/elimail/Multi-depotBridgeInspectionProblem/tree/main](repositorio de Profesora Elizabeth Montero), se deben seguir los siguientes pasos
+Para ver como se van "consumiendo" las instancias de [repositorio de Profesora Elizabeth Montero](https://github.com/elimail/Multi-depotBridgeInspectionProblem/tree/main), se deben seguir los siguientes pasos
 
 Para compilar el código para mostrar el resultado de las instancias generadas
 
@@ -16,10 +16,10 @@ Una vez compilado para visualizar una instancia cualquiera, en su terminal inser
 ./<mostrar_instancia> <ruta de la instancia que se quiere visualizar>
 ```
 
-Por ejemplo visualizando "<mostrar_instancia> = visualizador" y visualizar la instancia "instances/Instance_b10_a4_d3_s129.dat"
+Por ejemplo visualizando "<mostrar_instancia> = visualizador" y queriendo visualizar la instancia "instances/Instance_b10_a4_d3_s129.dat"
 
 ```
 ./visualizador instances/Instance_b10_a4_d3_s129.dat
 ```
 
-hola
+## Ejecución del optimizador
