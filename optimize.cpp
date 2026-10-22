@@ -9,6 +9,7 @@
 static const double MIN_IMPROVEMENT = 1e-6;
 
 struct VnsResult {
+  Solution initial;
   Solution best;
   double initial_cost;
   double best_cost;
@@ -17,6 +18,7 @@ struct VnsResult {
 static VnsResult vns(const Instance &I, double alpha, double epsilon, int max_iterations, mt19937 &rng) {
   Solution current = reconstructor(I, empty_solution(I), 1.0);
   double current_cost = objective(I, current);
+  Solution initial = current;
   double initial_cost = current_cost;
   MoveSelector selector;
 
@@ -36,7 +38,7 @@ static VnsResult vns(const Instance &I, double alpha, double epsilon, int max_it
       current_cost = improved_cost;
     }
   }
-  return {current, initial_cost, current_cost};
+  return {initial, current, initial_cost, current_cost};
 }
 
 static double parse_number(const string &text, const string &name) {
@@ -91,7 +93,10 @@ int main(int argc, char **argv) {
     cout << "Costo inicial: " << result.initial_cost << endl;
     cout << "Mejor costo: " << result.best_cost << endl;
     cout << "Tiempo: " << seconds << " s" << endl;
+    cout << "Mejor solucion:" << endl;
     print_solution(I, result.best);
+    cout << "Solucion inicial:" << endl;
+    print_solution(I, result.initial);
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;
     return 1;
