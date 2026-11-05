@@ -1,6 +1,7 @@
 #include "optimize_utils.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <functional>
 #include <map>
 #include <sstream>
@@ -19,24 +20,24 @@ double travel_cost(const Instance &I, int from, int to) {
   return COST_PER_DISTANCE * distance_one_decimal;
 }
 
-double route_cost(const Instance &I, const vector<int> &route, int team) {
+double route_cost(const Instance &I, const vector<int> &route) {
   double cost = 0;
   for (size_t p = 0; p + 1 < route.size(); p++) {
     int from = route[p], to = route[p + 1];
     cost += travel_cost(I, from, to);
 
     if (contains(I.M, to)) cost += I.f.at(to);
-
-    bool dispatches_team = from == team && (is_bridge(I, to) || contains(I.M, to));
-    if (dispatches_team) cost += I.v;
   }
   return cost;
 }
 
 double objective(const Instance &I, const Solution &sol) {
   double cost = 0;
-  for (int team : I.O)
-    if ((size_t)team < sol.size()) cost += route_cost(I, sol[team], team);
+  // Igual que MDIIP: el costo de despacho v se cobra a todo equipo, aunque no salga del deposito.
+  for (int team : I.O) {
+    cost += I.v;
+    if ((size_t)team < sol.size()) cost += route_cost(I, sol[team]);
+  }
   return cost;
 }
 
@@ -491,4 +492,109 @@ void update_move(MoveSelector &selector, Move move, double reward) {
   int m = static_cast<int>(move);
   selector.times_chosen[m]++;
   selector.q[m] += (reward - selector.q[m]) / selector.times_chosen[m];
+}
+
+// Constructor de MDIIP (Constructor::feasibleSolution). Usa rand() para que, con srand(seed),
+// genere la misma secuencia aleatoria que MDIIP con la misma semilla.
+struct MdiipTeam {
+  vector<int> nodes;
+  int worktime = 0;
+  int workdays = 1;
+  int visited = 0;
+};
+
+struct MdiipState {
+  vector<MdiipTeam> teams;
+  vector<int> unvisited;
+  vector<int> active;
+  int max_visit;
+};
+
+static int mdiip_random(int min, int max) { return rand() % (max - min + 1) + min; }
+
+static void mdiip_return_to_depot(MdiipState &state, int t) {
+  state.teams[t].nodes.push_back(state.teams[t].nodes.front());
+  state.active.erase(find(state.active.begin(), state.active.end(), t));
+}
+
+// Un paso de MDIIP: puente al azar entre los 3 mas baratos que caben, si no alojamiento al azar
+// entre los 2 mas baratos, si no vuelta al deposito. Devuelve false si el equipo cerro su ruta.
+static bool mdiip_step(const Instance &I, MdiipState &state, int t) {
+  MdiipTeam &team = state.teams[t];
+  int current = team.nodes.back();
+
+  vector<int> available;
+  for (int bridge : state.unvisited)
+    if (team.worktime + visit_time(I, current, bridge) <= I.Q) available.push_back(bridge);
+  sort(available.begin(), available.end(),
+       [&](int a, int b) { return travel_cost(I, current, a) < travel_cost(I, current, b); });
+
+  if (!available.empty()) {
+    int pick = mdiip_random(0, 2);
+    if (pick >= (int)available.size()) pick = pick - 1 < (int)available.size() ? pick - 1 : pick - 2;
+    int bridge = available[pick];
+    team.nodes.push_back(bridge);
+    team.worktime += visit_time(I, current, bridge);
+    team.visited++;
+    state.unvisited.erase(find(state.unvisited.begin(), state.unvisited.end(), bridge));
+  } else if (team.workdays < (int)I.K.size()) {
+    vector<int> lodgings = I.M;
+    sort(lodgings.begin(), lodgings.end());
+    sort(lodgings.begin(), lodgings.end(), [&](int a, int b) {
+      return I.f.at(a) + travel_cost(I, current, a) < I.f.at(b) + travel_cost(I, current, b);
+    });
+    team.nodes.push_back(lodgings[min(mdiip_random(0, 1), (int)lodgings.size() - 1)]);
+    team.workdays++;
+    team.worktime = 0;
+  } else {
+    mdiip_return_to_depot(state, t);
+    return false;
+  }
+
+  if (team.visited == state.max_visit) {
+    mdiip_return_to_depot(state, t);
+    return false;
+  }
+  return true;
+}
+
+static bool mdiip_try_build(const Instance &I, Solution &built) {
+  MdiipState state;
+  vector<int> depots = I.O;
+  sort(depots.begin(), depots.end());
+  state.unvisited = I.N;
+  sort(state.unvisited.begin(), state.unvisited.end());
+  const int min_visit = 1;
+  state.max_visit = depots.size() > 1 ? (int)state.unvisited.size() - min_visit : (int)state.unvisited.size();
+
+  for (size_t t = 0; t < depots.size(); t++) {
+    state.teams.push_back({{depots[t]}});
+    state.active.push_back((int)t);
+    while (state.teams[t].visited < min_visit)
+      if (!mdiip_step(I, state, (int)t)) break;
+  }
+
+  while (!state.unvisited.empty()) {
+    if (state.active.empty()) return false;
+    mdiip_step(I, state, state.active[mdiip_random(0, (int)state.active.size() - 1)]);
+  }
+
+  built = empty_solution(I);
+  for (MdiipTeam &team : state.teams) {
+    if (team.nodes.size() > 1 && team.nodes.back() != team.nodes.front()) {
+      if (contains(I.M, team.nodes.back())) team.nodes.pop_back();
+      team.nodes.push_back(team.nodes.front());
+    }
+    built[team.nodes.front()] = team.nodes;
+  }
+  return true;
+}
+
+Solution mdiip_constructor(const Instance &I) {
+  const int max_attempts = 1000;
+  for (int attempt = 0; attempt < max_attempts; attempt++) {
+    Solution built;
+    if (mdiip_try_build(I, built) && is_feasible(I, built)) return built;
+  }
+  throw runtime_error("mdiip_constructor: no se pudo construir una solucion factible");
 }

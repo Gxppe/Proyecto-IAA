@@ -15,8 +15,8 @@ struct VnsResult {
   double best_cost;
 };
 
-static VnsResult vns(const Instance &I, double alpha, double epsilon, int max_iterations, mt19937 &rng) {
-  Solution current = reconstructor(I, empty_solution(I), 1.0);
+static VnsResult vns(const Instance &I, char greedy, double alpha, double epsilon, int max_iterations, mt19937 &rng) {
+  Solution current = greedy == 'E' ? mdiip_constructor(I) : reconstructor(I, empty_solution(I), 1.0);
   double current_cost = objective(I, current);
   Solution initial = current;
   double initial_cost = current_cost;
@@ -62,8 +62,8 @@ static void require_between(double value, double low, double high, const string 
 }
 
 int main(int argc, char **argv) {
-  if (argc != 6) {
-    cerr << "Uso: " << argv[0] << " <ruta_instancia.dat> <alpha> <epsilon> <max_iteraciones> <seed>" << endl;
+  if (argc != 7) {
+    cerr << "Uso: " << argv[0] << " <ruta_instancia.dat> <alpha> <epsilon> <max_iteraciones> <seed> <E|P>" << endl;
     return 1;
   }
 
@@ -73,6 +73,7 @@ int main(int argc, char **argv) {
     double epsilon = parse_number(argv[3], "epsilon");
     double max_iterations = parse_number(argv[4], "max_iteraciones");
     double seed = parse_number(argv[5], "seed");
+    string greedy = argv[6];
 
     require_between(alpha, 0, 1, "alpha");
     require_between(epsilon, 0, 1, "epsilon");
@@ -80,16 +81,19 @@ int main(int argc, char **argv) {
     require_between(seed, 0, 4294967295.0, "seed");
     if (max_iterations != floor(max_iterations) || seed != floor(seed))
       throw invalid_argument("max_iteraciones y seed deben ser enteros");
+    if (greedy != "E" && greedy != "P") throw invalid_argument("greedy debe ser E (MDIIP) o P (propio), se recibio " + greedy);
 
     Instance I = read_instance(path);
     mt19937 rng((unsigned)seed);
+    srand((unsigned)seed);
 
     auto start = chrono::steady_clock::now();
-    VnsResult result = vns(I, alpha, epsilon, (int)max_iterations, rng);
+    VnsResult result = vns(I, greedy[0], alpha, epsilon, (int)max_iterations, rng);
     double seconds = chrono::duration<double>(chrono::steady_clock::now() - start).count();
 
     cout << setprecision(15);
     cout << "Instancia: " << path << endl;
+    cout << "Greedy inicial: " << (greedy == "E" ? "E (MDIIP)" : "P (propio)") << endl;
     cout << "Costo inicial: " << result.initial_cost << endl;
     cout << "Mejor costo: " << result.best_cost << endl;
     cout << "Tiempo: " << seconds << " s" << endl;

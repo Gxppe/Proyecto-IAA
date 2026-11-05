@@ -5,7 +5,7 @@
 #include <random>
 
 double travel_cost(const Instance &I, int from, int to);
-double route_cost(const Instance &I, const vector<int> &route, int team);
+double route_cost(const Instance &I, const vector<int> &route);
 double objective(const Instance &I, const Solution &sol);
 
 Solution two_opt(const Instance &I, const Solution &sol, int team, int day, int first, int last);
@@ -43,3 +43,5 @@ Solution hill_climbing(const Instance &I, const Solution &sol, Move move);
 Solution destructor(const Instance &I, const Solution &sol, double alpha, mt19937 &rng);
 
 Solution reconstructor(const Instance &I, const Solution &broken, double alpha);
+
+Solution mdiip_constructor(const Instance &I);
